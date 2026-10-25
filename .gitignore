@@ -1,0 +1,23 @@
+# Private configuration and traffic history
+data/
+**/data/
+.env
+.env.*
+*.log
+*.db
+*.db-*
+*.sqlite3
+*.sqlite3-*
+
+# Python cache and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local editor and distribution files
+.vscode/
+.idea/
+*.zip
+.DS_Store
+Thumbs.db
