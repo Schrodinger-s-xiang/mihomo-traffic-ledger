@@ -1,5 +1,7 @@
 # Mihomo 流量账本
 
+中文 | [English](#english)
+
 在本机持续记录经过 Mihomo 的连接流量，按网站、域名、程序和出口方式汇总，支持历史查询和分钟范围筛选。
 
 采用 Python 标准库、SQLite 与原生 HTML/CSS/JavaScript，无需安装第三方 Python 依赖。提供 Windows 启动和登录自启脚本；Python 服务也可在其他支持的平台手动运行。
@@ -125,3 +127,141 @@ python -m unittest -v test_app.py
 
 - [Mihomo](https://github.com/MetaCubeX/mihomo)
 - [Mihomo 配置文档](https://wiki.metacubex.one/)
+
+---
+
+# English
+
+## Mihomo Traffic Ledger
+
+Continuously record connection traffic passing through Mihomo on your computer. Aggregate usage by website, domain, process, and outbound route, with historical queries and minute-level time filters.
+
+Built with the Python standard library, SQLite, and plain HTML/CSS/JavaScript. No third-party Python packages are required. Windows launch and sign-in startup scripts are included; the Python service can also be started manually on other supported platforms.
+
+## Features
+
+- View upload and download usage by website/service, domain/IP, process, and direct/proxy outbound route.
+- Query today, yesterday, the last seven or thirty days, the current month, or a custom start and end time specified to the minute.
+- Quickly select the last fifteen minutes, one hour, or six hours; custom end times can follow the current time.
+- Sort by traffic volume or latest activity. Show the first five entries by default and expand to view all entries.
+- Display separate outbound labels when a website uses multiple routes. Hover over each label to see its traffic usage.
+- Export CSV files, switch between light and dark themes, and retain local SQLite history.
+- Start silently after Windows sign-in without opening a browser.
+
+## Requirements
+
+- Python 3.10 or newer.
+- A running Mihomo core, such as the core used by Clash Verge Rev.
+- A local HTTP external controller, for example `http://127.0.0.1:9090`, and its corresponding Secret.
+
+The recorder does not modify Clash rules, routing modes, or node configurations. It does not include a proxy service.
+
+## Quick Start
+
+1. Download and extract this repository's source code to a permanent directory.
+2. Install Python. On Windows, enable **Add Python to PATH** during installation.
+3. Find `external-controller` and `secret` in your Clash settings or active configuration. The mixed proxy port is not the controller port.
+4. On Windows, double-click `start.bat`. On other platforms, run `python3 app.py`.
+5. Open `http://127.0.0.1:8765` in your browser. Expand “连接设置与状态” (Connection settings and status), enter the controller address and Secret, and save.
+6. Once the upper-right indicator says “正在记录” (Recording), visit websites through Clash and wait a few seconds to see accumulated usage.
+
+Example controller configuration:
+
+```yaml
+external-controller: 127.0.0.1:9090
+secret: "replace-with-your-own-secret"
+```
+
+If the HTTP external controller is not enabled, enable it through your Clash client's persistent settings or configuration overrides. TUN is not required solely for recording; the connections simply need to pass through Mihomo.
+
+## Starting and Stopping
+
+| File or command | Purpose |
+| --- | --- |
+| `start.bat` | Start in the foreground and open the dashboard |
+| `start-background.vbs` | Hide the Windows console window, while still opening the dashboard |
+| `stop.bat` | Stop Python processes whose command line matches the full path of app.py in this directory |
+| `restart.bat` | Stop this directory's processes and restart the recorder |
+| `enable-autostart.bat` | Enable startup for the current Windows user at sign-in and attempt to start the background recorder |
+| `disable-autostart.bat` | Disable sign-in startup without stopping an already-running process |
+| `python app.py --no-browser` | Start without opening the dashboard automatically |
+| `python app.py --port 8766` | Use a different dashboard port |
+
+Automatic startup uses the detected `pythonw.exe`. It does not show a console, open a browser, or require administrator rights. Keep the program directory and Python installation in the same locations after setup; rerun setup if they move. Clash must also be running. The recorder retries when it cannot connect.
+
+Closing the dashboard does not stop recording; stopping the background service does. Recording does not continue before Windows sign-in, during sleep, or while the computer is shut down. The Windows scripts have not been tested on a real Windows machine in the project's maintenance environment, so check the dashboard connection status after using them.
+
+## Time Ranges and Measurement
+
+### Daily Summaries and Minute Details
+
+Presets such as Today, Yesterday, and Last Seven Days query daily summaries, preserving history from older versions. Custom date/time ranges and recent-minute/hour presets query minute details. The entire ending minute is included: for example, 10:01 to 10:01 selects the increments collected during that minute.
+
+Minute details are saved only after a version supporting them has started. Daily totals from older versions cannot be reconstructed into minute-by-minute usage and are not included in minute queries. The dashboard shows when minute recording began. The two datasets are queried separately, rather than added together, to avoid double counting.
+
+“最近活动” (Latest activity) is the last time new traffic was collected within the selected range. It is not the connection creation time or a per-visit browsing history. Older records without timestamps show “未记录” (Not recorded). Records without timestamps appear last when sorting by time.
+
+### Accuracy Limitations
+
+- Read connection IDs, cumulative byte counters, and metadata from `/connections` WebSocket snapshots, then calculate differences between snapshots.
+- The first snapshot on initial connection or reconnection only establishes a baseline. Traffic from offline periods is not backfilled.
+- Short connections that end between snapshots and the final bytes before a connection disappears may be missed.
+- Traffic is assigned to the computer's local date and minute at collection time. Increments spanning a minute boundary may be assigned to the next minute.
+- Byte counts represent connection payload measured by the core. Provider billing overhead, multipliers, and traffic from other devices may differ.
+- Only connections passing through Mihomo are visible. Traffic bypassing the core cannot be counted.
+
+## Website, Process, and Outbound Identification
+
+Services are grouped heuristically using domain and process names. Edit `SERVICES` in `app.py` to customize them. One service may include multiple related domains.
+
+Codex is identified by process name when available. Without process information, shared OpenAI domains are not automatically attributed to Codex. Logs from iOS proxy clients are not directly compatible with this project.
+
+Outbound classification uses the final outbound name in Mihomo's `chains`: DIRECT/COMPATIBLE is classified as direct, REJECT/REJECT-DROP as blocked, a missing chain as unknown, and other names as proxy. Custom special outbounds may require classification adjustments.
+
+## Data and Privacy
+
+Runtime data is stored in `data/` under the program directory:
+
+- `config.json`: Controller address and Secret.
+- `traffic.sqlite3`: Traffic summaries, minute details, and recording metadata.
+- `background.log`: Local output and errors when started without a console.
+
+The service listens only on `127.0.0.1`. It does not provide public website hosting or remote multi-user access. The dashboard does not return the saved Secret, and configuration writes require a runtime-generated local token.
+
+**Do not publish the data directory, controller secrets, subscription URLs, or screenshots containing personal browsing history.** `.gitignore` excludes runtime data, logs, databases, and environment files. Stop the recorder before backing up the entire data directory; an active database may also have WAL files.
+
+## Upgrading
+
+Stop the background process, replace the source files, retain the existing data directory, and restart the recorder and refresh the dashboard. The database automatically adds required fields and minute tables without clearing existing summaries.
+
+The current backend version is 1.4.0 and the dashboard version is 1.4.1. They are labeled separately. If the dashboard is updated while an older backend remains running, some new fields and query modes will not work.
+
+## Troubleshooting
+
+- **Cannot connect:** Check that the core is running and verify the HTTP controller address and Secret. Do not use the mixed proxy port.
+- **No traffic:** The first snapshot only establishes a baseline. Check the outbound filter and time range, then generate new traffic through Mihomo.
+- **Activity time is not recorded:** Older history has no timestamps. If the dashboard says “后台未提供” (Not provided by backend), update app.py and restart the backend.
+- **Both proxy and direct labels appear:** Different connections in the selected period used different outbounds. This does not mean one connection used both paths simultaneously.
+- **Port already in use:** An instance may already be running. Open its dashboard or use a different dashboard port instead of starting duplicate instances.
+- **Recording continues after disabling autostart:** Disabling autostart only affects future sign-ins. Run stop.bat to stop the current instance.
+
+## Tests
+
+```bash
+python -m unittest -v test_app.py
+```
+
+Tests use temporary databases and local simulated controller endpoints; a real Clash instance is not required. They cover incremental counting, reconnection baselines, history migration, time sorting, minute boundaries, time zones, outbound filters, WebSocket handshakes, and HTTP endpoints.
+
+## License and Related Projects
+
+This project is released under the [MIT License](LICENSE). This repository contains the recorder source code; it does not include or distribute the Mihomo core.
+
+- [Mihomo](https://github.com/MetaCubeX/mihomo)
+- [Mihomo documentation](https://wiki.metacubex.one/)
+
+---
+
+本项目全部由 ChatGPT（Codex，基于 GPT-6）上传至 GitHub。
+
+This project was uploaded to GitHub entirely by ChatGPT (Codex, based on GPT-6).
